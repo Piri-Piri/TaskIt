@@ -7,31 +7,27 @@
 //
 
 import UIKit
+import CoreData
 
-class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
+class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSource, NSFetchedResultsControllerDelegate {
 
     @IBOutlet weak var tableView: UITableView!
     
-    var taskArray:[TaskModel] = []
+    let mObjContext = (UIApplication.sharedApplication().delegate as AppDelegate).managedObjectContext
+    var fetchedResultsController: NSFetchedResultsController = NSFetchedResultsController()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
         
-        let task1 = TaskModel(task: "Learn Swift", subTask: "Bitfountain Course", date: Date.from(2014, month: 12, day: 12))
-        let task2 = TaskModel(task: "Build a own App", subTask: "Publish to AppStore", date: Date.from(2015, month: 12, day: 12))
-        let task3 = TaskModel(task: "Gym", subTask: "Leg Day", date: Date.from(2014, month: 10, day: 12))
-        
-        taskArray = [task1, task2, task3]
-        
-        tableView.reloadData()
-        
+        fetchedResultsController = getFetchedResulsController()
+        fetchedResultsController.delegate = self
+        fetchedResultsController.performFetch(nil)
     }
     
     override func viewDidAppear(animated: Bool) {
-        super.viewWillAppear(animated)
-        
-        tableView.reloadData()
+        super.viewDidAppear(animated)
+
     }
 
     override func didReceiveMemoryWarning() {
@@ -50,27 +46,29 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
     override func prepareForSegue(segue: UIStoryboardSegue, sender: AnyObject?) {
         if segue.identifier == "toTaskDetailSegue" {
             let indexPath = tableView.indexPathForSelectedRow()
-        
-            var taskDetailViewController = segue.destinationViewController as TaskDetailViewController
-            taskDetailViewController.detailedTaskModel = taskArray[indexPath!.row]
-            taskDetailViewController.mainVC = self
+            
+            let taskDetailViewController: TaskDetailViewController = segue.destinationViewController as TaskDetailViewController
+            taskDetailViewController.detailedTaskModel = fetchedResultsController.objectAtIndexPath(indexPath!) as TaskModel
         } else if segue.identifier == "toAddTaskSegue" {
-            var addTaskViewController = segue.destinationViewController as AddTaskViewController
-            addTaskViewController.mainVC = self
+            let addTaskViewController = segue.destinationViewController as AddTaskViewController
         }
         
     }
 
     // MARK: TableView DataSource
     
+    func numberOfSectionsInTableView(tableView: UITableView) -> Int {
+        return fetchedResultsController.sections!.count
+    }
+    
     func tableView(tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return taskArray.count
+        return fetchedResultsController.sections![section].numberOfObjects
     }
     
     func tableView(tableView: UITableView, cellForRowAtIndexPath indexPath: NSIndexPath) -> UITableViewCell {
         var cell = tableView.dequeueReusableCellWithIdentifier("taskCell", forIndexPath: indexPath) as TaskCell
 
-        let taskModel = taskArray[indexPath.row]
+        let taskModel = fetchedResultsController.objectAtIndexPath(indexPath) as TaskModel
         
         cell.taskLabel?.text = taskModel.task
         cell.descriptionLabel?.text = taskModel.subTask
@@ -79,10 +77,71 @@ class ViewController: UIViewController, UITableViewDelegate, UITableViewDataSour
         return cell
     }
     
+    func tableView(tableView: UITableView, heightForHeaderInSection section: Int) -> CGFloat {
+        return 25
+    }
+    
+    func tableView(tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        if fetchedResultsController.sections?.count == 1 {
+            let fetchedObjects = fetchedResultsController.fetchedObjects!
+            let testTask:TaskModel = fetchedObjects[0] as TaskModel
+            if testTask.isCompleted == true {
+                return "Completed"
+            }
+            else {
+                return "ToDo's"
+            }
+            
+        }
+        else {
+            if section == 0 {
+                return "ToDo's"
+            }
+            else  {
+                return "Completed"
+            }
+        }
+    }
+    
+    func tableView(tableView: UITableView, commitEditingStyle editingStyle: UITableViewCellEditingStyle, forRowAtIndexPath indexPath: NSIndexPath) {
+        let appDelegate = UIApplication.sharedApplication().delegate as AppDelegate
+        let selectedTask = fetchedResultsController.objectAtIndexPath(indexPath) as TaskModel
+        
+        if selectedTask.isCompleted == true {
+            selectedTask.isCompleted = false
+        }
+        else {
+            selectedTask.isCompleted = true
+        }
+        
+        appDelegate.saveContext()
+    }
+    
+    // MARK: NSFetchedResultsControllerDelegate
+    
+    func controllerDidChangeContent(controller: NSFetchedResultsController) {
+        tableView.reloadData()
+    }
+    
     // MARK: TableView Delegate
     
     func tableView(tableView: UITableView, didSelectRowAtIndexPath indexPath: NSIndexPath) {
         self.performSegueWithIdentifier("toTaskDetailSegue", sender: self)
+    }
+    
+    // MARK: Helper Functions
+    
+    func getFetchedResulsController() -> NSFetchedResultsController {
+        fetchedResultsController = NSFetchedResultsController(fetchRequest: taskFetchRequest(), managedObjectContext: mObjContext!, sectionNameKeyPath: "isCompleted", cacheName: nil)
+        return fetchedResultsController
+    }
+    
+    func taskFetchRequest() -> NSFetchRequest {
+        let fetchRequest = NSFetchRequest(entityName: "TaskModel")
+        let dateSortDescriptor = NSSortDescriptor(key: "date", ascending: true)
+        let completedDescriptor = NSSortDescriptor(key: "isCompleted", ascending: true)
+        fetchRequest.sortDescriptors = [completedDescriptor, dateSortDescriptor]
+        return fetchRequest
     }
 }
 

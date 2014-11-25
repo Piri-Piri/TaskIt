@@ -8,18 +8,36 @@
 
 import Foundation
 import UIKit
+import CoreData
 
 class AddTaskViewController: UIViewController {
-    
-    var mainVC: ViewController!
     
     @IBOutlet weak var taskTextField: UITextField!
     @IBOutlet weak var subTaskTextField: UITextField!
     @IBOutlet weak var taskDatePicker: UIDatePicker!
  
     @IBAction func addTaskAction(sender: UIButton) {
-        var task = TaskModel(task: taskTextField.text, subTask: subTaskTextField.text, date: taskDatePicker.date)
-        mainVC.taskArray.append(task)
+        
+        let appDelegate = UIApplication.sharedApplication().delegate as AppDelegate
+        let mObjContext = appDelegate.managedObjectContext
+        
+        let entityDesc = NSEntityDescription.entityForName("TaskModel", inManagedObjectContext: mObjContext!)
+        let task = TaskModel(entity: entityDesc!, insertIntoManagedObjectContext: mObjContext)
+        task.task = taskTextField.text
+        task.subTask = subTaskTextField.text
+        task.date = taskDatePicker.date
+        task.isCompleted = false
+        
+        appDelegate.saveContext()
+        
+        var request = NSFetchRequest(entityName: "TaskModel")
+        var error:NSError? = nil
+        
+        var results:NSArray = mObjContext!.executeFetchRequest(request, error: &error)!
+        
+        for result in results {
+            println("\(result)")
+        }
         
         self.dismissViewControllerAnimated(true, completion: nil)
     }
